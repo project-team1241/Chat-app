@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat Application</title>
+    <style>
+      /* CSS for the chat interface */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f1f1f1;
+      }
+
+      #chat-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+      }
+
+      #userInfo {
+        display: none;
+        margin-bottom: 15px;
+      }
+
+      #userName {
+        font-weight: bold;
+        margin-right: 5px;
+      }
+
+      #userStatus {
+        color: green;
+      }
+
+      #messages {
+        max-height: 400px;
+        overflow-y: scroll;
+        width: 100%;
+        max-width: 500px;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .message {
+        padding: 8px;
+        margin-bottom: 8px;
+        border-radius: 5px;
+        width: fit-content;
+        word-wrap: break-word;
+        display: block;
+      }
+
+      .user-message {
+        background-color: #d4edda;
+        text-align: right;
+        align-self: flex-end;
+      }
+
+      .other-message {
+        background-color: #f8d7da;
+        text-align: left;
+        align-self: flex-start;
+      }
+
+      .status {
+        font-size: 12px;
+        color: gray;
+      }
+
+      .join-btn,
+      .send-message-btn,
+      .disconnect-btn {
+        padding: 10px 15px;
+        margin: 5px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 20px; /* Rounded corners */
+        transition: background-color 0.3s ease;
+      }
+
+      .join-btn:hover,
+      .send-message-btn:hover,
+      .disconnect-btn:hover {
+        background-color: #45a049;
+      }
+
+      #userList {
+        width: 100%;
+        max-width: 500px;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      #userList ul {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      #userList li {
+        padding: 8px;
+        border-bottom: 1px solid #ccc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .online-status {
+        color: green;
+      }
+
+      .offline-status {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat-container">
+      <div id="userInfo">
+        <span id="userName"></span>
+        <span id="userStatus">✔️</span>
+        <span class="status">Online</span>
+      </div>
+
+      <div id="userList">
+        <h3>Users</h3>
+        <ul id="usersTab">
+          <!-- User list will be dynamically populated -->
+        </ul>
+      </div>
+
+      <div>
+        <label for="name">Enter your name: </label>
+        <input type="text" id="name" placeholder="Enter name" />
+        <button class="join-btn" id="joinBtn">Join Chat</button>
+      </div>
+
+      <div id="messages"></div>
+
+      <div>
+        <textarea id="messageBox" placeholder="Type a message..."></textarea>
+        <button class="send-message-btn" id="sendMessageBtn">Send Message</button>
+      </div>
+
+      <button class="disconnect-btn" id="disconnectBtn" style="display: none;">Disconnect</button>
+    </div>
+
+    <script>
+      let socket;
+      let name;
+      let historyReceived = false; // Track whether history is received
+      const usersTab = document.getElementById("usersTab");
+      const messagesDiv = document.getElementById("messages");
+      const messageBox = document.getElementById("messageBox");
+
+      // Join the chat and initiate WebSocket connection
+      document.getElementById("joinBtn").onclick = function () {
+        name = document.getElementById("name").value.trim();
+        if (name) {
+          socket = new WebSocket(`ws://localhost:8080/?name=${name}`);
+
+          socket.onopen = function () {
+            console.log("Connected to the WebSocket server");
+            document.getElementById("userInfo").style.display = "flex";
+            document.getElementById("userName").innerText = name;
+            document.getElementById("userStatus").innerText = "✔️"; // Green checkmark when connected
+            document.getElementById("joinBtn").style.display = "none"; // Hide join button after joining
+            document.getElementById("disconnectBtn").style.display = "inline"; // Show disconnect button
+          };
+
+          socket.onmessage = function (event) {
+            const data = JSON.parse(event.data); // Parse the incoming JSON data
+
+            // Prevent duplication of chat history
+            if (data.type === "chat-history" && !historyReceived) {
+              // This block runs only once
+              data.messages.forEach((messageData) => {
+                const messageClass =
+                  messageData.sender === name ? "user-message" : "other-message";
+                messagesDiv.innerHTML += `<div class="message ${messageClass}">${messageData.sender}: ${messageData.message}</div>`;
+              });
+              historyReceived = true; // Mark that history has been received
+            }
+
+            // Handle other message types (new messages, user join/leave)
+            if (data.type === "user-message") {
+              const messageClass =
+                data.sender === name ? "user-message" : "other-message";
+              messagesDiv.innerHTML += `<div class="message ${messageClass}">${data.sender}: ${data.message}</div>`;
+            } else if (data.type === "user-join") {
+              updateUserList(data.name, "online");
+            } else if (data.type === "user-left") {
+              updateUserList(data.name, "offline");
+            }
+
+            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto scroll to the bottom
+          };
+
+          socket.onerror = function (error) {
+            console.error("WebSocket error:", error);
+          };
+
+          socket.onclose = function () {
+            console.log("WebSocket connection closed");
+            document.getElementById("userStatus").innerText = "❌"; // Red cross when disconnected
+            document.getElementById("joinBtn").style.display = "inline"; // Show join button again
+            document.getElementById("disconnectBtn").style.display = "none"; // Hide disconnect button
+          };
+        } else {
+          alert("Please enter a name");
+        }
+      };
+
+      // Send a message to the WebSocket server
+      document.getElementById("sendMessageBtn").onclick = function () {
+        const message = messageBox.value.trim();
+        if (message && socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(message); // Send the message to the WebSocket server
+          messageBox.value = ""; // Clear the message box after sending
+        }
+      };
+
+      // Disconnect from the WebSocket server
+      document.getElementById("disconnectBtn").onclick = function () {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close(); // Close the WebSocket connection
+        }
+      };
+
+      // Update the user list with online/offline status
+      function updateUserList(userName, status) {
+        let userItem = document.querySelector(
+          `#usersTab li[data-name="${userName}"]`
+        );
+        if (!userItem) {
+          userItem = document.createElement("li");
+          userItem.setAttribute("data-name", userName);
+          userItem.innerHTML = `${userName} <span class="${
+            status === "online" ? "online-status" : "offline-status"
+          }">${status === "online" ? "✔️" : "❌"}</span>`;
+          usersTab.appendChild(userItem);
+        } else {
+          const statusElement = userItem.querySelector("span");
+          statusElement.className =
+            status === "online" ? "online-status" : "offline-status";
+          statusElement.innerText = status === "online" ? "✔️" : "❌";
+        }
+      }
+    </script>
+  </body>
+</html>

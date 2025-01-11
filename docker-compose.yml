@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: . # Dockerfile is in the root directory
+      dockerfile: Dockerfile # Ensure this matches the name of your Dockerfile
+    ports:
+      - "8080:8080" # Bind local port 8080 to container port 8080
+    volumes:
+      - .:/app # Mount the current directory to `/app` in the container
+    environment:
+      - NODE_ENV=production # Optional: Define environment variable
