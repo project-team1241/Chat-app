@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 
 // Initialize express app
 const app = express();
-const port = 8080;
+const port = 80;
 
 // Get the current directory path using `import.meta.url`
 const __filename = fileURLToPath(import.meta.url);
