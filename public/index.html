@@ -170,7 +170,7 @@
       document.getElementById("joinBtn").onclick = function () {
         name = document.getElementById("name").value.trim();
         if (name) {
-          socket = new WebSocket(`ws://localhost:8080/?name=${name}`);
+          socket = new WebSocket(`wss://chat-app-nine-swart.vercel.app:8080/?name=${name}`);
 
           socket.onopen = function () {
             console.log("Connected to the WebSocket server");
